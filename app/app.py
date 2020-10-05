@@ -2,28 +2,123 @@ from fastapi import FastAPI, File, UploadFile
 from pydantic import BaseModel
 from io import BytesIO
 
+from pipeline import preprocess_pipeline
+from processors import display_metrics
+from pipeline import train_pipeline
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import classification_report
+
 import uvicorn
 import joblib
 import numpy as np
 import pandas as pd
 
 app = FastAPI()
-model = joblib.load('../models/log_reg_tkt')
-vectorizer = joblib.load('../models/vectorizer')
-encoder = joblib.load('../models/encoder')
+
+
+@app.post('/preprocess/')
+def preprocess_data(file: UploadFile = File(...)):
+    if file.filename.endswith(('.csv', '.CSV')):
+        csv_file = file.file.read()
+        df = pd.read_csv(BytesIO(csv_file))
+        output = preprocess_pipeline.transform(X=df)
+
+        output.to_csv('../data/preprocessed_data.csv', index=False)
+        return {
+            "Message": "Preprocessed data save to "
+                       "../data/preprocessed_data.csv"
+        }
+
+    else:
+        return {"Message": "Please upload a csv file"}
+
+
+@app.post('/train/')
+def train_model(file: UploadFile = File(...)):
+    if file.filename.endswith(('.csv', '.CSV')):
+        csv_file = file.file.read()
+        df = pd.read_csv(BytesIO(csv_file))
+
+        X = df['short_descriptions']
+        y = df['assignment_groups']
+
+        enc = LabelEncoder()
+        y_enc = enc.fit_transform(y)
+        joblib.dump(value=enc, filename='../models/encoder.joblib')
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y,
+            test_size=0.2,
+            random_state=0
+        )
+        print(X_train.shape, y_train.shape, X_test.shape, y_test.shape)
+
+        predictor = train_pipeline.fit(X=X_train, y=y_train)
+
+        y_hat = predictor.predict(X_test)
+
+        acc, f1, precision, recall = display_metrics(true=y_test, pred=y_hat)
+
+        joblib.dump(
+            value=enc,
+            filename='../models/encoder.joblib',
+            compress=2
+        )
+
+        joblib.dump(
+            value=predictor.named_steps['count_vec'],
+            filename='../models/vectorizer.joblib',
+            compress=2
+        )
+
+        joblib.dump(
+            value=predictor,
+            filename='../models/model.joblib',
+            compress=2
+        )
+
+        report = classification_report(y_true=y_test,
+                                       y_pred=predictor.predict(X_test),
+                                       output_dict=True)
+        report_df = pd.DataFrame(report)
+
+        print(report_df.T)
+        print(report_df.columns)
+
+        report_df.T.to_csv('../data/classification_report.csv')
+
+        return {
+            "Accuracy": acc,
+            "F1": f1,
+            "Precision": precision,
+            "Recall": recall
+        }
+
+    else:
+        return {"Message": "Please upload a csv file"}
+
+
+model = joblib.load('../models/model.joblib')
+vectorizer = joblib.load('../models/vectorizer.joblib')
+encoder = joblib.load('../models/encoder.joblib')
 
 
 class ShortDescription(BaseModel):
     description: str
 
 
-@app.post('/predict_class/')
+@app.post('/predict_single/')
 async def predict_asgn_group(short_desc: ShortDescription):
     short_desc_dict = short_desc.dict()
     if short_desc.description:
         input_text = np.array([short_desc.description])
+
         input_text_vec = vectorizer.transform(input_text)
+
         prediction = model.predict(input_text_vec)
+
         prediction_enc = encoder.inverse_transform(prediction)[0]
         short_desc_dict.update({
             "Predicted assignment group": str(prediction_enc)
@@ -65,9 +160,7 @@ async def batch_predictions(file: UploadFile = File(...)):
     except Exception as e:
         print(f'Error: {e}')
         return {
-            "Error": "Please check if input csv file has "
-                     "'short_descriptions' and 'assignment_groups' columns "
-                     "in it"
+            "Error": e
         }
 
 
