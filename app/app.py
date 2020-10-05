@@ -12,7 +12,6 @@ from sklearn.metrics import classification_report
 
 import uvicorn
 import joblib
-import numpy as np
 import pandas as pd
 
 app = FastAPI()
@@ -50,13 +49,13 @@ def train_model(file: UploadFile = File(...)):
 
         X_train, X_test, y_train, y_test = train_test_split(
             X, y,
-            test_size=0.2,
+            test_size=0.1,
             random_state=0
         )
 
         X_test, X_val, y_test, y_val = train_test_split(
             X_test, y_test,
-            test_size=0.5,
+            test_size=0.2,
             random_state=0
         )
 
@@ -80,20 +79,8 @@ def train_model(file: UploadFile = File(...)):
         acc, f1, precision, recall = display_metrics(true=y_test, pred=y_hat)
 
         joblib.dump(
-            value=enc,
-            filename='../models/encoder.joblib',
-            compress=2
-        )
-
-        joblib.dump(
-            value=predictor.named_steps['count_vec'],
-            filename='../models/vectorizer.joblib',
-            compress=2
-        )
-
-        joblib.dump(
             value=predictor,
-            filename='../models/model.joblib',
+            filename='../models/model_pipeline.joblib',
             compress=2
         )
 
@@ -115,9 +102,6 @@ def train_model(file: UploadFile = File(...)):
         return {"Message": "Please upload a csv file"}
 
 
-model = joblib.load('../models/model.joblib')
-
-
 class ShortDescription(BaseModel):
     description: str
 
@@ -125,6 +109,7 @@ class ShortDescription(BaseModel):
 @app.post('/predict_single/')
 async def predict_asgn_group(short_desc: ShortDescription):
     short_desc_dict = short_desc.dict()
+    model = joblib.load('../models/model_pipeline.joblib')
     if short_desc.description:
         prediction = model.predict([short_desc.description])
         print(prediction)
@@ -139,6 +124,7 @@ async def predict_asgn_group(short_desc: ShortDescription):
 
 @app.post('/predict_batch/')
 async def batch_predictions(file: UploadFile = File(...)):
+    model = joblib.load('../models/model_pipeline.joblib')
     try:
         if file.filename.endswith(('.csv', '.CSV')):
             csv_file = await file.read()
@@ -168,9 +154,6 @@ async def batch_predictions(file: UploadFile = File(...)):
 
     except Exception as e:
         print(f'Error: {e}')
-        return {
-            "Error": e
-        }
 
 
 if __name__ == '__main__':

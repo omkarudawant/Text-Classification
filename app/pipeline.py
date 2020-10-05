@@ -3,6 +3,7 @@ from imblearn.pipeline import Pipeline as Imblearn_pipeline
 from imblearn.over_sampling import SMOTE
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import LinearSVC
 import processors
 
 smt = SMOTE(random_state=0)
@@ -36,7 +37,6 @@ train_pipeline = Imblearn_pipeline(
     [
         ('count_vec', CountVectorizer()),
         ('over_sample_smote', smt),
-        ('naive_bayes', MultinomialNB())
-
+        ('naive_bayes', LinearSVC())
     ]
 )
