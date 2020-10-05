@@ -133,7 +133,8 @@ dmypy.json
 # input data and models
 input/
 app/models/
-
+data/
+models/
 
 # data/model files
 *.h5
