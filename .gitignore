@@ -141,15 +141,6 @@ models/
 *.pth
 *.bin
 
-data/new_balanced_data.csv
-data/new_balanced_data_100.csv
-data/new_balanced_data_200.csv
-data/new_balanced_data_250_preprocessed.csv
-data/new_balanced_data_5.csv
-data/new_balanced_data_500_preprocessed.csv
-data/preprocessed_data.csv
-data/validation_set.csv
-
 # Archives
 *.tar.gz
 *.zip
