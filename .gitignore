@@ -135,6 +135,7 @@ input/
 app/models/
 data/
 models/
+research/
 
 # data/model files
 *.h5
