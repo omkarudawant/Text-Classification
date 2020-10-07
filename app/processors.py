@@ -100,10 +100,6 @@ class FilterLabels(BaseEstimator, TransformerMixin):
         max_label_name = counts.index[0]
         required_datapoints = counts[1]
 
-        print(
-            f'Required dp: {required_datapoints} | MaxLabelName: '
-            f'{max_label_name}')
-
         max_class = dataframe[
             dataframe[self.label_column_name] == max_label_name]
 
@@ -114,8 +110,6 @@ class FilterLabels(BaseEstimator, TransformerMixin):
         dataframe = df.copy()
 
         max_class, max_label_name = self.find_max_label(df=dataframe)
-
-        print(f'Max class:\n{max_class}')
 
         dataframe = dataframe[
             ~dataframe[self.label_column_name].isin([max_label_name])
@@ -144,10 +138,6 @@ class FilterLabels(BaseEstimator, TransformerMixin):
         filter_labels = self.filter_labels(df=X)
         X = filter_labels.copy()
 
-        # X['assignment_groups'].value_counts().plot(kind='bar',
-        #                                                 figsize=(15, 5))
-        # plt.show()
-
         print('Done FilterLabels')
         return X
 
@@ -172,14 +162,14 @@ class CleanText(BaseEstimator, TransformerMixin):
 
     def clean_text(self, df: pd.DataFrame):
         dataframe = df.copy()
-        print(dataframe.isna().sum() / len(dataframe) * 100)
+
         tqdm.pandas()
         dataframe[self.column_name] = dataframe[
             self.column_name].progress_apply(lambda x: self._clean_text(x))
 
-        # dataframe[self.column_name] = dataframe[
-        #     self.column_name].progress_apply(lambda x:
-        #     self.preprocess_text(x))
+        dataframe[self.column_name] = dataframe[
+            self.column_name].progress_apply(lambda x:
+                                             self.preprocess_text(x))
 
         dataframe[self.column_name] = dataframe[self.column_name].str.replace(
             '-PRON-', '')
@@ -198,51 +188,3 @@ class CleanText(BaseEstimator, TransformerMixin):
         X = cleaned_dataframe.copy()
         print('Done CleanText')
         return X
-
-# class OverSample(BaseEstimator, TransformerMixin):
-#     def __init__(self):
-#         super(OverSample, self).__init__()
-#         self.smt = SMOTE(random_state=0)
-#         self.vectorizer = CountVectorizer()
-#         self.encoder = LabelEncoder()
-#
-#     def fit(self, X, y):
-#         print(f'Entered OverSample')
-#         X_vec = self.vectorizer.fit_transform(X)
-#         y_vec = self.encoder.fit_transform(y)
-#         X, y = self.smt.fit_resample(X_vec, y_vec)
-#         X = self.vectorizer.transform(X)
-#         y = self.encoder.transform(y)
-#         print('Done OverSample')
-#         return self
-#
-#     def transform(self, X):
-#         X = self.vectorizer.transform(X)
-#         return X
-
-
-# class ExtractFromArrays(BaseEstimator, TransformerMixin):
-#     def __init__(self, column_name):
-#         super(ExtractFromArrays, self).__init__()
-#         self.column_name = column_name
-#
-#     # noinspection PyMethodMayBeStatic
-#     def extract(self, text):
-#         return ' '.join([t for t in text])
-#
-#     def extract_from_array(self, df: pd.DataFrame):
-#         print(f'Entered ExtractFromArrays: {df.shape}')
-#         dataframe = df.copy()
-#         dataframe[self.column_name] = dataframe[self.column_name].apply(
-#             lambda x: self.extract(x))
-#         print('Done ExtractFromArrays')
-#         return dataframe
-#
-#     def fit(self, X, y) -> 'ExtractFromArrays':
-#         X = X.copy()
-#         extracted_text_from_arrays = self.extract_from_array(df=X)
-#         X = extracted_text_from_arrays.copy()
-#         return self
-#
-#     def transform(self, X):
-#         return self.extract_from_array(df=X.copy())

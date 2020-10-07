@@ -33,10 +33,11 @@ preprocess_pipeline = Sklearn_pipeline(
     ]
 )
 
+classification_model = None
 train_pipeline = Imblearn_pipeline(
     [
         ('count_vec', CountVectorizer()),
         ('over_sample_smote', smt),
-        ('naive_bayes', LinearSVC())
+        ('class_model', classification_model)
     ]
 )

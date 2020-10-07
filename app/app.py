@@ -1,15 +1,28 @@
+from warnings import filterwarnings
+filterwarnings('ignore')
+
 from fastapi import FastAPI, File, UploadFile
 from pydantic import BaseModel
 from io import BytesIO
 
 from pipeline import preprocess_pipeline
 from processors import display_metrics
-from pipeline import train_pipeline
+from imblearn.pipeline import Pipeline as Imblearn_pipeline
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report
 
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import LinearSVC
+from sklearn.tree import DecisionTreeClassifier
+
+from imblearn.over_sampling import SMOTE
+from sklearn.feature_extraction.text import CountVectorizer
+
+import time
 import uvicorn
 import joblib
 import pandas as pd
@@ -72,20 +85,60 @@ def train_model(file: UploadFile = File(...)):
             }
         ).to_csv('../data/validation_set.csv', index=False)
 
-        predictor = train_pipeline.fit(X=X_train, y=y_train)
+        models = [
+            MultinomialNB(),
+            LogisticRegression(n_jobs=-1),
+            RandomForestClassifier(n_jobs=-1),
+            LinearSVC(),
+            DecisionTreeClassifier()
+        ]
 
-        y_hat = predictor.predict(X_test)
+        trained_models = dict()
+
+        for m in models:
+            model_name = m.__class__.__name__
+            print(f'Training -> {model_name}')
+
+            train_pipeline = Imblearn_pipeline(
+                [
+                    ('count_vec', CountVectorizer()),
+                    ('over_sample_smote', SMOTE(random_state=0)),
+                    ('class_model', m)
+                ]
+            )
+
+            s = time.time()
+
+            predictor = train_pipeline
+            predictor.fit(X_train, y_train)
+
+            e = time.time()
+
+            print(f'Training time: {round(e - s)} seconds')
+
+            preds = predictor.predict(X_test)
+            acc, f1, precision, recall = display_metrics(true=y_test,
+                                                         pred=preds)
+
+            trained_models[recall] = predictor
+
+            print('-' * 50)
+
+        final_model = max(sorted(trained_models.items(), reverse=True))[1]
+        print('Best model: ', final_model)
+
+        y_hat = final_model.predict(X_test)
 
         acc, f1, precision, recall = display_metrics(true=y_test, pred=y_hat)
 
         joblib.dump(
-            value=predictor,
+            value=final_model,
             filename='../models/model_pipeline.joblib',
             compress=2
         )
 
         report = classification_report(y_true=y_test,
-                                       y_pred=predictor.predict(X_test),
+                                       y_pred=final_model.predict(X_test),
                                        output_dict=True)
         report_df = pd.DataFrame(report)
 
@@ -106,10 +159,13 @@ class ShortDescription(BaseModel):
     description: str
 
 
+model = joblib.load('../models/model_pipeline.joblib')
+
+
 @app.post('/predict_single/')
 async def predict_asgn_group(short_desc: ShortDescription):
     short_desc_dict = short_desc.dict()
-    model = joblib.load('../models/model_pipeline.joblib')
+
     if short_desc.description:
         prediction = model.predict([short_desc.description])
         print(prediction)
@@ -124,7 +180,6 @@ async def predict_asgn_group(short_desc: ShortDescription):
 
 @app.post('/predict_batch/')
 async def batch_predictions(file: UploadFile = File(...)):
-    model = joblib.load('../models/model_pipeline.joblib')
     try:
         if file.filename.endswith(('.csv', '.CSV')):
             csv_file = await file.read()
